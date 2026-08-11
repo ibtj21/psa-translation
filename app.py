@@ -76,6 +76,11 @@ def _load_model(which):
     if previously is not None and previously != which:
         st.cache_resource.clear()
         gc.collect()
+        import ctypes
+        try:
+            ctypes.CDLL("libc.so.6").malloc_trim(0)
+        except Exception:
+            pass
         tracker = _model_tracker()
     tracker["which"] = which
     return _load_model_resource(which)
