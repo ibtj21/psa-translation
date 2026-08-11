@@ -50,30 +50,36 @@ if not MT5_AVAILABLE and not NLLB_AVAILABLE:
 
 
 
-_loaded = {"which": None, "tok": None, "model": None}
+import gc
 
 def _load_model(which):
-    """Loads either 'mt5' or 'nllb', unloading whichever model was previously
-    loaded so only one is ever in memory at a time -- needed to fit within
-    Streamlit Cloud's free-tier memory limit."""
-    if _loaded["which"] == which:
-        return _loaded["tok"], _loaded["model"]
+    if st.session_state.get("loaded_which") == which:
+        return st.session_state["loaded_tok"], st.session_state["loaded_model"]
 
-    if _loaded["model"] is not None:
-        del _loaded["model"]
-        del _loaded["tok"]
+    if "loaded_model" in st.session_state:
+        del st.session_state["loaded_model"]
+        del st.session_state["loaded_tok"]
         gc.collect()
 
     model_dir = MT5_MODEL_DIR if which == "mt5" else NLLB_MODEL_DIR
+    dtype = torch.bfloat16 if which == "nllb" else torch.float32
     tok = AutoTokenizer.from_pretrained(model_dir)
-    model = AutoModelForSeq2SeqLM.from_pretrained(model_dir)
+    model = AutoModelForSeq2SeqLM.from_pretrained(model_dir, dtype=dtype)
     model.to("cuda" if torch.cuda.is_available() else "cpu")
     model.eval()
 
-    _loaded["which"] = which
-    _loaded["tok"] = tok
-    _loaded["model"] = model
+    st.session_state["loaded_which"] = which
+    st.session_state["loaded_tok"] = tok
+    st.session_state["loaded_model"] = model
     return tok, model
+
+
+def load_mt5():
+    return _load_model("mt5")
+
+
+def load_nllb():
+    return _load_model("nllb")
 
 def load_mt5():
     return _load_model("mt5")
