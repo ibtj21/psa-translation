@@ -52,37 +52,38 @@ if not MT5_AVAILABLE and not NLLB_AVAILABLE:
 
 import gc
 
-def _load_model(which):
-    if st.session_state.get("loaded_which") == which:
-        return st.session_state["loaded_tok"], st.session_state["loaded_model"]
+@st.cache_resource
+def _model_tracker():
+    # A mutable container st.cache_resource keeps alive across reruns AND across
+    # every user session -- this is what actually tracks which model is loaded app-wide.
+    return {"which": None}
 
-    if "loaded_model" in st.session_state:
-        del st.session_state["loaded_model"]
-        del st.session_state["loaded_tok"]
-        gc.collect()
 
+@st.cache_resource
+def _load_model_resource(which):
     model_dir = MT5_MODEL_DIR if which == "mt5" else NLLB_MODEL_DIR
     dtype = torch.bfloat16 if which == "nllb" else torch.float32
     tok = AutoTokenizer.from_pretrained(model_dir)
     model = AutoModelForSeq2SeqLM.from_pretrained(model_dir, dtype=dtype)
     model.to("cuda" if torch.cuda.is_available() else "cpu")
     model.eval()
-
-    st.session_state["loaded_which"] = which
-    st.session_state["loaded_tok"] = tok
-    st.session_state["loaded_model"] = model
     return tok, model
 
 
+def _load_model(which):
+    tracker = _model_tracker()
+    previously = tracker["which"]
+    if previously is not None and previously != which:
+        st.cache_resource.clear()
+        gc.collect()
+        tracker = _model_tracker()
+    tracker["which"] = which
+    return _load_model_resource(which)
+
+
 def load_mt5():
     return _load_model("mt5")
 
-
-def load_nllb():
-    return _load_model("nllb")
-
-def load_mt5():
-    return _load_model("mt5")
 
 def load_nllb():
     return _load_model("nllb")
