@@ -17,6 +17,7 @@ import pandas as pd
 import streamlit as st
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 from huggingface_hub import repo_exists
+import gc
 
 MT5_MODEL_DIR = "HanaHailemariam/mt5-en-guz"
 NLLB_MODEL_DIR = "HanaHailemariam/nllb-en-guz"
@@ -47,22 +48,38 @@ if not MT5_AVAILABLE and not NLLB_AVAILABLE:
     st.stop()
 
 
-@st.cache_resource(show_spinner="Loading mT5 model...")
+
+
+_loaded = {"which": None, "tok": None, "model": None}
+
+def _load_model(which):
+    """Loads either 'mt5' or 'nllb', unloading whichever model was previously
+    loaded so only one is ever in memory at a time -- needed to fit within
+    Streamlit Cloud's free-tier memory limit."""
+    if _loaded["which"] == which:
+        return _loaded["tok"], _loaded["model"]
+
+    if _loaded["model"] is not None:
+        del _loaded["model"]
+        del _loaded["tok"]
+        gc.collect()
+
+    model_dir = MT5_MODEL_DIR if which == "mt5" else NLLB_MODEL_DIR
+    tok = AutoTokenizer.from_pretrained(model_dir)
+    model = AutoModelForSeq2SeqLM.from_pretrained(model_dir)
+    model.to("cuda" if torch.cuda.is_available() else "cpu")
+    model.eval()
+
+    _loaded["which"] = which
+    _loaded["tok"] = tok
+    _loaded["model"] = model
+    return tok, model
+
 def load_mt5():
-    tok = AutoTokenizer.from_pretrained(MT5_MODEL_DIR)
-    model = AutoModelForSeq2SeqLM.from_pretrained(MT5_MODEL_DIR)
-    model.to("cuda" if torch.cuda.is_available() else "cpu")
-    model.eval()
-    return tok, model
+    return _load_model("mt5")
 
-
-@st.cache_resource(show_spinner="Loading NLLB model...")
 def load_nllb():
-    tok = AutoTokenizer.from_pretrained(NLLB_MODEL_DIR)
-    model = AutoModelForSeq2SeqLM.from_pretrained(NLLB_MODEL_DIR)
-    model.to("cuda" if torch.cuda.is_available() else "cpu")
-    model.eval()
-    return tok, model
+    return _load_model("nllb")
 
 
 def mt5_prefix(source_lang):
