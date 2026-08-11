@@ -200,8 +200,7 @@ if MT5_AVAILABLE:
     model_options.append("mT5-small")
 if NLLB_AVAILABLE:
     model_options.append("NLLB-200-distilled-600M")
-if MT5_AVAILABLE and NLLB_AVAILABLE:
-    model_options.append("Both (compare)")
+
 
 col1, col2 = st.columns(2)
 with col1:
@@ -209,7 +208,7 @@ with col1:
     source_lang = "en" if source_lang_label == "English" else "sw"
 with col2:
     model_choice = st.selectbox("Model", model_options)
-    if model_choice in ("NLLB-200-distilled-600M", "Both (compare)"):
+    if model_choice == "NLLB-200-distilled-600M":
         st.caption("Note: NLLB may occasionally output Kiswahili instead of Ekegusii — a known limitation, see poster for details.")
 text = st.text_area(
     "Sentence to translate",
@@ -221,9 +220,9 @@ text = st.text_area(
 if st.button("Translate", type="primary", disabled=not text.strip()):
     results = {}
     with st.spinner("Translating..."):
-        if model_choice in ("mT5-small", "Both (compare)") and MT5_AVAILABLE:
+        if model_choice == "mT5-small" and MT5_AVAILABLE:
             results["mT5-small"] = translate_mt5(text, source_lang)
-        if model_choice in ("NLLB-200-distilled-600M", "Both (compare)") and NLLB_AVAILABLE:
+        if model_choice == "NLLB-200-distilled-600M" and NLLB_AVAILABLE:
             results["NLLB-200-distilled-600M"] = translate_nllb(text, source_lang)
     st.session_state.last_translations = results
     st.session_state.last_source_text = text
